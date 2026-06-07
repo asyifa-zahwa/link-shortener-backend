@@ -17,7 +17,7 @@ public class Url {
     @GeneratedValue(strategy = GenerationType.IDENTITY) // Otomatis dipetakan ke BIGSERIAL di Postgres
     private Long id;
 
-    @Column(name = "short_code", unique = true, nullable = false, length = 30)
+    @Column(name = "short_code", unique = true, nullable = true, length = 30)
     // unique = true otomatis membuat Unique B-Tree Index untuk menangani race condition & lookup cepat
     private String shortCode;
 
