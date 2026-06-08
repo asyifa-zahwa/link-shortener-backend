@@ -8,6 +8,7 @@ import com.example.linkshortener.entity.Url;
 import com.example.linkshortener.entity.User;
 import com.example.linkshortener.repository.UrlRepository;
 import com.example.linkshortener.repository.UserRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

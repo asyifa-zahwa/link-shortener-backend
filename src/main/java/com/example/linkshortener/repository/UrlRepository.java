@@ -22,7 +22,7 @@ public interface UrlRepository extends JpaRepository<Url, Long> {
      * Query sakti untuk menarik data URL sekaligus menghitung total klik secara real-time per user
      */
     @Query("SELECT new com.example.linkshortener.dto.MyUrlsResponse$UrlItem(" +
-            "u.shortCode, u.longUrl, CONCAT('https://localhost:8080/', u.shortCode), COUNT(c), u.createdAt) " +
+            "u.shortCode, u.longUrl, CONCAT('http://localhost:8080/', u.shortCode), COUNT(c), u.createdAt) " +
             "FROM Url u " +
             "LEFT JOIN ClickAnalytics c ON c.url = u " +
             "WHERE u.user.username = :username " +
