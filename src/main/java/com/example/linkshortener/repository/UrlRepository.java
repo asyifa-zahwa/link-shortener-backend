@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Repository
@@ -29,4 +31,9 @@ public interface UrlRepository extends JpaRepository<Url, Long> {
             "GROUP BY u.id, u.shortCode, u.longUrl, u.createdAt " +
             "ORDER BY u.createdAt DESC")
     Page<MyUrlsResponse.UrlItem> findUserUrlsWithClickCount(@Param("username") String username, Pageable pageable);
+
+    /**
+     * Menyapu bersih semua baris data yang expiredAt nya sudah melewati waktu parameter
+     */
+    void deleteByExpiredAtBefore(LocalDateTime dateTime);
 }
