@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -17,9 +18,11 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
+    private final RedisTemplate<String, Object> redisTemplate;
 
-    public JwtAuthenticationFilter(JwtUtils jwtUtils) {
+    public JwtAuthenticationFilter(JwtUtils jwtUtils, RedisTemplate<String, Object> redisTemplate) {
         this.jwtUtils = jwtUtils;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
@@ -36,6 +39,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             jwtToken = authHeader.substring(7); // Potong kata "Bearer " untuk ambil token mentah
             if (jwtUtils.validateToken(jwtToken)) {
+                // KUNCI UTAMA: Cek apakah token ini ada di daftar blacklist Redis
+                String blacklistKey = "jwt:blacklist:" + jwtToken;
+                Boolean isBlacklisted = redisTemplate.hasKey(blacklistKey);
+
+                if (Boolean.TRUE.equals(isBlacklisted)) {
+                    // Jika token ada di blacklist, langsung tolak di tempat!
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"success\":false,\"message\":\"Token sudah tidak valid (Silakan login kembali)\"}");
+                    return; // Stop token tidak boleh lanjut ke filter atau controller berikutnya
+                }
                 username = jwtUtils.getUsernameFromToken(jwtToken);
             }
         }

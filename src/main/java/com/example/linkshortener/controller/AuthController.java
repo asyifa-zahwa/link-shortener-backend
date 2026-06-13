@@ -4,6 +4,8 @@ import com.example.linkshortener.dto.LoginRequest;
 import com.example.linkshortener.dto.LoginResponse;
 import com.example.linkshortener.dto.RegisterRequest;
 import com.example.linkshortener.service.AuthService;
+import com.example.linkshortener.service.TokenBlacklistService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,8 +20,10 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final TokenBlacklistService tokenBlacklistService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, TokenBlacklistService tokenBlacklistService) {
+        this.tokenBlacklistService = tokenBlacklistService;
         this.authService = authService;
     }
 
@@ -68,13 +72,22 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, Object>> logout() {
-        // Bersihkan autentikasi dari thread lokal Spring Security saat ini
+    public ResponseEntity<?> logout(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String jwtToken = authHeader.substring(7);
+
+            // DELEGASI: Serahkan urusan blacklist ke service khusus
+            tokenBlacklistService.blacklistToken(jwtToken);
+        }
+
+        // Bersihkan context keamanan memori Java
         SecurityContextHolder.clearContext();
 
         return ResponseEntity.ok(Map.of(
                 "success", true,
-                "message", "Logged out successfully"
+                "message", "Logout berhasil, token Anda telah dinonaktifkan!"
         ));
     }
 }

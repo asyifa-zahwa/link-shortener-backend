@@ -15,6 +15,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Service
 public class UrlService {
 
@@ -37,6 +39,7 @@ public class UrlService {
         // 1. Buat object Entity Url baru
         Url url = new Url();
         url.setLongUrl(request.getLongUrl());
+        url.setExpiredAt(LocalDateTime.now().plusWeeks(1));
         url.setUser(null); // NULL karena dibuat oleh Guest
 
         // 2. Simpan dulu ke database PostgreSQL untuk memicu dan mendapatkan ID Auto-Increment (BIGSERIAL)
@@ -61,6 +64,26 @@ public class UrlService {
         // 1. AMBIL DATA USER JIKA DIA LOG IN
         if (currentUsername != null && !currentUsername.equals("anonymousUser")) {
             currentUser = userRepository.findByUsername(currentUsername).orElse(null);
+        }
+        LocalDateTime requestedExpiry = request.getExpiredAt();
+
+        if (requestedExpiry != null) {
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime maxAllowedExpiry = now.plusDays(30); // Batas maksimal 1 bulan
+
+            // Proteksi 1: Jika tanggal yang diminta sudah lewat dari waktu sekarang (masa lalu)
+            if (requestedExpiry.isBefore(now)) {
+                throw new IllegalArgumentException("Tanggal kedaluwarsa tidak boleh di masa lalu!");
+            }
+
+            // Proteksi 2: Jika tanggal yang diminta melebihi 1 bulan dari sekarang
+            if (requestedExpiry.isAfter(maxAllowedExpiry)) {
+                throw new IllegalArgumentException("Waduh, batas maksimal masa aktif link adalah 30 hari!");
+            }
+        } else {
+            // Kebijakan Bisnis: Jika user tidak mengisi expiredAt, kita set default 1 bulan dari sekarang
+            // (Atau bisa kamu set null jika ingin user terdaftar berlaku selamanya)
+            requestedExpiry = LocalDateTime.now().plusDays(30);
         }
 
         // 2. VALIDASI STRATEGI CUSTOM ALIAS
@@ -93,7 +116,7 @@ public class UrlService {
         Url url = new Url();
         url.setLongUrl(request.getLongUrl());
         url.setShortCode(finalShortCode); // Bisa berupa teks alias atau null
-        url.setExpiredAt(request.getExpiredAt());
+        url.setExpiredAt(requestedExpiry);
         url.setUser(currentUser); // Hubungkan dengan user (akan bernilai null jika guest)
 
         url = urlRepository.save(url);
@@ -117,7 +140,7 @@ public class UrlService {
                         .longUrl(url.getLongUrl())
                         .shortUrl("http://localhost:8080/" + finalShortCode) // Gunakan domain idemu
                         .createdAt(url.getCreatedAt())
-                        .expiredAt(url.getExpiredAt())
+                        .expiredAt(requestedExpiry)
                         .createdBy(currentUser != null ? currentUser.getUsername() : "GUEST")
                         .build())
                 .build();

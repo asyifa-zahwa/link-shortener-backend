@@ -42,8 +42,8 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**", "/api/v1/urls/guest", "/{shortCode}").permitAll()
-                        .requestMatchers("/api/v1/my-urls").authenticated()
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/urls/guest", "/{shortCode}").permitAll()
+                        .requestMatchers("/api/v1/my-urls", "/api/v1/auth/logout").authenticated()
 
                         // 2. Sisa request lainnya di masa depan wajib membawa token JWT
                         .anyRequest().authenticated()

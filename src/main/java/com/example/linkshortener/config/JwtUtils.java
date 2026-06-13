@@ -43,6 +43,14 @@ public class JwtUtils {
                 .getPayload();
         return claims.getSubject();
     }
+    public Date getExpirationDateFromToken(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getExpiration();
+    }
 
     /**
      * Validasi apakah token JWT asli dan belum kedaluwarsa

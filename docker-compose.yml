@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  web-app:
+    build: .
+    image: linkshortener-backend-dev-image
+    container_name: linkshortener-app-container
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/linkshortener
+      - SPRING_DATA_REDIS_HOST=host.docker.internal
