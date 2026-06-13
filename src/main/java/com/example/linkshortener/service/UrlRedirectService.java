@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
@@ -80,9 +81,30 @@ public class UrlRedirectService {
                     ownerId
             );
 
-            // Setel TTL Jitter: 24 Jam (1440 Menit) + Acak hingga 3 jam (180 Menit)
-            long randomMinutes = 1440 + new java.util.Random().nextInt(180);
-            redisTemplate.opsForValue().set(cacheKey, newCache, randomMinutes, TimeUnit.MINUTES);
+            long finalTTLInMinutes;
+
+            // Rumus dasar TTL Jitter lama kamu (24 Jam + Acak hingga 3 jam)
+            long jitterTTLInMinutes = 1440 + new java.util.Random().nextInt(180);
+
+            if (url.getExpiredAt() != null) {
+                // Hitung sisa umur asli link dari sekarang dalam satuan menit
+                long minutesUntilExpired = Duration.between(LocalDateTime.now(), url.getExpiredAt()).toMinutes();
+
+                if (minutesUntilExpired <= 0) {
+                    throw new IllegalStateException("Link pendek ini sudah kedaluwarsa!");
+                }
+
+                // Ambil nilai yang paling kecil/cepat mati antara sisa umur link VS durasi Jitter
+                // Contoh: Jika sisa umur link tinggal 180 menit (3 jam), kita pakai 180 menit, bukan 1440 menit.
+                finalTTLInMinutes = Math.min(minutesUntilExpired, jitterTTLInMinutes);
+            } else {
+                // Jika link berlaku selamanya (expiredAt == null), gunakan Jitter bawaan
+                finalTTLInMinutes = jitterTTLInMinutes;
+            }
+
+            // Set data ke Redis menggunakan hasil kalkulasi Dynamic TTL kita
+            System.out.println("====== [REDIS SET] Menyimpan cache untuk " + shortCode + " dengan TTL: " + finalTTLInMinutes + " Menit ======");
+            redisTemplate.opsForValue().set(cacheKey, newCache, finalTTLInMinutes, TimeUnit.MINUTES);
 
             // Jika bukan milik guest, pemicu analitik async dijalankan
             if (ownerId != null) {

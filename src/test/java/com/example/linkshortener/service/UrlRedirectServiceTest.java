@@ -123,4 +123,73 @@ class UrlRedirectServiceTest {
                 eq(TimeUnit.MINUTES)
         );
     }
+    @Test
+    @DisplayName("Jalur CACHE HIT: Harus Melempar Error dan Menghapus Cache Jika Mendeteksi Link Kedaluwarsa di Memori")
+    void getOriginalUrlAndRecordClick_CacheHit_ButExpired_ShouldDeleteCacheAndThrowError() {
+        // GIVEN: Simulasikan data ada di Redis (Cache Hit), tapi expiredAt bernilai 5 menit yang lalu
+        LocalDateTime pastExpiry = LocalDateTime.now().minusMinutes(5);
+        UrlCacheModel expiredCache = new UrlCacheModel(12L, shortCode, "https://google.com", pastExpiry, 100L);
+
+        Mockito.when(valueOperations.get(cacheKey)).thenReturn(expiredCache);
+
+        // WHEN & THEN: Pastikan aplikasi melempar IllegalStateException
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            urlRedirectService.getOriginalUrlAndRecordClick(shortCode, request);
+        });
+
+        assertEquals("Link pendek ini sudah kedaluwarsa!", exception.getMessage());
+
+        // PENTING: Pastikan jaring pengaman darurat kita menghapus cache basi tersebut dari Redis
+        Mockito.verify(redisTemplate, Mockito.times(1)).delete(cacheKey);
+
+        // PostgreSQL dan Analitik tidak boleh disentuh karena proses dihentikan seketika
+        Mockito.verify(urlRepository, Mockito.never()).findByShortCode(anyString());
+        Mockito.verify(analyticsService, Mockito.never()).recordClickAnalyticsAsync(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Jalur CACHE MISS: Harus Melempar Error Jika Data di Database Ternyata Sudah Kedaluwarsa")
+    void getOriginalUrlAndRecordClick_CacheMiss_ButDatabaseExpired_ShouldThrowError() {
+        // GIVEN: Redis kosong, tapi data di database ternyata sudah expired 1 hari yang lalu
+        dummyUrl.setExpiredAt(LocalDateTime.now().minusDays(1));
+
+        Mockito.when(valueOperations.get(cacheKey)).thenReturn(null);
+        Mockito.when(urlRepository.findByShortCode(shortCode)).thenReturn(Optional.of(dummyUrl));
+
+        // WHEN & THEN: Harus melempar error saat mengecek data dari database
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            urlRedirectService.getOriginalUrlAndRecordClick(shortCode, request);
+        });
+
+        assertEquals("Link pendek ini sudah kedaluwarsa!", exception.getMessage());
+
+        // PENTING: Karena sudah expired, data TIDAK BOLEH disimpan ke Redis
+        Mockito.verify(valueOperations, Mockito.never()).set(anyString(), any(), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("Jalur CACHE MISS: Harus Menyimpan ke Redis dengan Dynamic TTL Jika Sisa Umur Link Sangat Singkat")
+    void getOriginalUrlAndRecordClick_CacheMiss_WithDynamicTTL() {
+        // GIVEN: Redis kosong, dan link di database akan expired dalam 30 menit ke depan (Skenario Guest/User mepet)
+        LocalDateTime shortExpiry = LocalDateTime.now().plusMinutes(30);
+        dummyUrl.setExpiredAt(shortExpiry);
+
+        Mockito.when(valueOperations.get(cacheKey)).thenReturn(null);
+        Mockito.when(urlRepository.findByShortCode(shortCode)).thenReturn(Optional.of(dummyUrl));
+
+        // WHEN
+        String originalUrl = urlRedirectService.getOriginalUrlAndRecordClick(shortCode, request);
+
+        // THEN
+        assertEquals("https://google.com", originalUrl);
+
+        // KUNCI STRATEGI 2: Pastikan nilai TTL yang masuk ke Redis bernilai <= 30 menit (Math.min bekerja!)
+        // Kita gunakan ArgumentCaptor atau custom matcher longThat untuk memverifikasi angka menitnya
+        Mockito.verify(valueOperations, Mockito.times(1)).set(
+                eq(cacheKey),
+                any(UrlCacheModel.class),
+                Mockito.longThat(ttl -> ttl > 0 && ttl <= 30), // Memastikan TTL dinamis bernilai maksimal 30 menit
+                eq(TimeUnit.MINUTES)
+        );
+    }
 }
