@@ -1,5 +1,6 @@
 package com.example.linkshortener.controller;
 
+import com.example.linkshortener.dto.ShortUrlAnalyticsResponse;
 import com.example.linkshortener.dto.ShortenRequest;
 import com.example.linkshortener.dto.ShortenUrlRequest;
 import com.example.linkshortener.dto.ShortenUrlResponse;
@@ -11,6 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.Map;
 
 @RestController
@@ -70,5 +72,30 @@ public class UrlController {
                     "error", e.getMessage()
             ));
         }
+    }
+
+    @DeleteMapping("/{shortCode}")
+    public ResponseEntity<?> deleteUserUrl(@PathVariable String shortCode, Principal principal) {
+        // Mengambil username dari user yang sedang terautentikasi (via JWT)
+        String currentUsername = principal.getName();
+
+        // Panggil service untuk mengeksekusi penghapusan aman
+        urlService.deleteUrl(shortCode, currentUsername);
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Link pendek '" + shortCode + "' berhasil dihapus secara permanen!"
+        ));
+    }
+
+    @GetMapping("/{shortCode}/analytics")
+    public ResponseEntity<ShortUrlAnalyticsResponse> getLinkAnalytics(
+            @PathVariable String shortCode,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal String currentUsername) {
+
+        // Eksekusi penarikan data via Service
+        ShortUrlAnalyticsResponse response = urlService.getUrlAnalytics(shortCode, currentUsername);
+
+        return ResponseEntity.ok(response);
     }
 }

@@ -42,6 +42,6 @@ public class Url {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
-    @OneToMany(mappedBy = "url", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "url", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
     private java.util.List<ClickAnalytics> analytics = new java.util.ArrayList<>();
 }
